@@ -4,7 +4,7 @@ author: AsterCommunity
 
 inputs:
   mode:
-    description: Operation to execute: pr-automation, ci-diagnostics, or validate-config
+    description: "Operation to execute: pr-automation, ci-diagnostics, or validate-config"
     required: true
   token:
     description: GitHub token or GitHub App installation token
