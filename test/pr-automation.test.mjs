@@ -14,6 +14,7 @@ function baseClient(overrides = {}) {
     createCheckRun: async () => {},
     updateCheckRun: async () => {},
     listIssueComments: async () => [],
+    listIssueTimeline: async () => [],
     updateIssueComment: async () => {},
     setIssueLabels: async () => {},
     graphql: async () => ({
@@ -173,6 +174,51 @@ test("closed PR cancels its pending gate", async () => {
       },
     },
   }]);
+});
+
+test("closed PR cancels pending gates from every historical head", async () => {
+  const updates = [];
+  const client = baseClient({
+    getPull: async () => pull({ merged: true, head: { sha: "current" } }),
+    listIssueTimeline: async () => [
+      { event: "committed", sha: "old-linear" },
+      {
+        event: "head_ref_force_pushed",
+        before_commit: { sha: "old-force-pushed" },
+        after_commit: { sha: "current" },
+      },
+    ],
+    listCheckRuns: async (sha) => ({
+      current: [{ id: 103, name: "PR Gate", status: "in_progress", conclusion: null }],
+      "old-linear": [
+        { id: 101, name: "PR Gate", status: "in_progress", conclusion: null },
+        { id: 100, name: "PR Gate", status: "completed", conclusion: "failure" },
+      ],
+      "old-force-pushed": [{ id: 102, name: "PR Gate", status: "queued", conclusion: null }],
+    })[sha] || [],
+    updateCheckRun: async (id, body) => updates.push({ id, body }),
+  });
+  await runPrAutomation({ client, event: { action: "closed", pull_request: pull() } });
+  assert.deepEqual(updates.map(({ id }) => id), [103, 101, 102]);
+  assert.ok(updates.every(({ body }) => body.conclusion === "cancelled"));
+});
+
+test("synchronize cancels the gate for the immediately superseded head", async () => {
+  const updates = [];
+  const client = baseClient({
+    listPullFiles: async () => [{ filename: "src/webdav/mod.rs" }],
+    listCheckRuns: async (sha) => sha === "previous"
+      ? [{ id: 88, name: "PR Gate", status: "in_progress", conclusion: null }]
+      : [],
+    updateCheckRun: async (id, body) => updates.push({ id, body }),
+  });
+  await runPrAutomation({
+    client,
+    event: { action: "synchronize", before: "previous", pull_request: pull() },
+  });
+  assert.equal(updates[0].id, 88);
+  assert.equal(updates[0].body.conclusion, "cancelled");
+  assert.match(updates[0].body.output.title, /Superseded/);
 });
 
 test("manual reconciliation finalizes a closed PR gate by number", async () => {

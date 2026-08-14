@@ -74,6 +74,10 @@ export class GitHubClient {
     return this.paginate(this.repoPath(`/issues/${number}/comments`));
   }
 
+  listIssueTimeline(number) {
+    return this.paginate(this.repoPath(`/issues/${number}/timeline`));
+  }
+
   createIssueComment(number, body) {
     return this.request("POST", this.repoPath(`/issues/${number}/comments`), { body });
   }

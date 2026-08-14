@@ -22,13 +22,47 @@ async function getLinkedIssues(client, number) {
   return response.data.repository.pullRequest.closingIssuesReferences.nodes;
 }
 
+function pullHistoryShas(pull, timeline) {
+  const shas = new Set([pull.head?.sha].filter(Boolean));
+  for (const event of timeline) {
+    if (event.event === "committed" && event.sha) shas.add(event.sha);
+    if (event.event === "head_ref_force_pushed") {
+      if (event.before_commit?.sha) shas.add(event.before_commit.sha);
+      if (event.after_commit?.sha) shas.add(event.after_commit.sha);
+    }
+  }
+  return [...shas];
+}
+
+async function cancelPendingGates(client, shas, config, output) {
+  const pending = [];
+  for (const sha of new Set(shas.filter(Boolean))) {
+    for (const run of await client.listCheckRuns(sha)) {
+      if (run.name === config.gate.name && run.status !== "completed") pending.push(run);
+    }
+  }
+  for (const run of pending) {
+    await client.updateCheckRun(run.id, {
+      status: "completed",
+      conclusion: "cancelled",
+      output,
+    });
+  }
+}
+
 function inheritedPriority(issues, config) {
   const priorities = new Set(issues.flatMap((issue) => issue.labels.nodes.map((label) => label.name))
     .filter((name) => name.startsWith(config.linkedIssues.priorityPrefix)));
   return priorities.size === 1 ? [...priorities][0] : null;
 }
 
-async function synchronizeOpenPull(client, pull, config) {
+async function synchronizeOpenPull(client, pull, config, supersededSha) {
+  if (supersededSha && supersededSha !== pull.head.sha) {
+    await cancelPendingGates(client, [supersededSha], config, {
+      title: "Superseded by a newer pull request head",
+      summary: `This gate belongs to an earlier pull request head and was cancelled when \`${pull.head.sha.slice(0, 12)}\` became current.`,
+    });
+  }
   const files = (await client.listPullFiles(pull.number)).map((file) => file.filename);
   const desiredManaged = new Set(labelsForFiles(files, config));
   const requiredWorkflows = expectedWorkflows(files, config);
@@ -84,20 +118,12 @@ async function synchronizeOpenPull(client, pull, config) {
 }
 
 async function synchronizeClosedPull(client, pull, config) {
-  const pendingGate = (await client.listCheckRuns(pull.head.sha))
-    .filter((run) => run.name === config.gate.name && run.status !== "completed")
-    .sort((left, right) => right.id - left.id)[0];
-  if (pendingGate) {
-    const state = pull.merged ? "merged" : "closed";
-    await client.updateCheckRun(pendingGate.id, {
-      status: "completed",
-      conclusion: "cancelled",
-      output: {
-        title: `Pull request ${state} before CI completed`,
-        summary: `The pull request was ${state} before all required CI workflows reached a terminal state.`,
-      },
-    });
-  }
+  const state = pull.merged ? "merged" : "closed";
+  const timeline = await client.listIssueTimeline(pull.number);
+  await cancelPendingGates(client, pullHistoryShas(pull, timeline), config, {
+    title: `Pull request ${state} before CI completed`,
+    summary: `The pull request was ${state} before all required CI workflows reached a terminal state.`,
+  });
   const labels = pull.labels.map((label) => label.name)
     .filter((label) => ![config.gate.runningLabel, config.gate.passedLabel].includes(label));
   if (pull.merged) {
@@ -130,5 +156,5 @@ export async function runPrAutomation({ client, event, config }) {
   const isManualReconciliation = !eventPull;
   if (isManualReconciliation && pull.state !== "closed") throw new Error("manual reconciliation requires a closed pull request");
   if (isManualReconciliation || event.action === "closed") return synchronizeClosedPull(client, pull, config);
-  return synchronizeOpenPull(client, pull, config);
+  return synchronizeOpenPull(client, pull, config, event.action === "synchronize" ? event.before : null);
 }

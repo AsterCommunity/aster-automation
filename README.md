@@ -11,7 +11,7 @@ The action owns reusable mechanics; each target repository owns its product-spec
 - One aggregate Check Run for path-filtered workflows.
 - One update-in-place diagnostic comment per pull request HEAD.
 - Fingerprinted default-branch and scheduled CI incident Issues with consecutive-success recovery.
-- Closed pull request recovery that terminates abandoned pending gates.
+- Superseded-head cleanup and closed pull request recovery that terminate abandoned pending gates across the full PR history.
 - Configuration validation without dependencies or generated bundles.
 
 ## Trust boundary
