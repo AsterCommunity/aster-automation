@@ -63,9 +63,15 @@ async function upsertGate(client, sha, workflows, config) {
       if (state.status === "completed" && existing.conclusion === state.conclusion) return existing;
       return client.createCheckRun(body);
     }
-    delete body.name;
-    delete body.head_sha;
-    return client.updateCheckRun(existing.id, body);
+    const updateBody = { ...body };
+    delete updateBody.name;
+    delete updateBody.head_sha;
+    try {
+      return await client.updateCheckRun(existing.id, updateBody);
+    } catch (error) {
+      if (!error.message.includes("(403)")) throw error;
+      return client.createCheckRun(body);
+    }
   }
   return client.createCheckRun(body);
 }

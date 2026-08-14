@@ -132,6 +132,46 @@ test("completed gate is superseded instead of reopened when rerun conclusion cha
   assert.match(comments[0].body, /Security Audit \| PASS/);
 });
 
+test("foreign pending gate is superseded when the current App cannot update it", async () => {
+  const created = [];
+  let checkListCalls = 0;
+  const client = requiredMethods({
+    getPull: async () => ({ number: 12, state: "open", head: { sha: "abc123" }, labels: [{ name: "CI: Running" }] }),
+    listPullFiles: async () => [{ filename: ".cargo/audit.toml" }],
+    listCheckRuns: async () => {
+      checkListCalls += 1;
+      if (checkListCalls === 1) {
+        return [{
+          id: 10,
+          name: "Security Audit",
+          details_url: "https://github.com/AsterCommunity/AsterDrive/actions/runs/100/job/1",
+        }];
+      }
+      return [{ id: 99, name: "PR Gate", status: "in_progress", conclusion: null }];
+    },
+    getWorkflowRun: async () => ({
+      id: 100,
+      name: "Security Audit",
+      head_sha: "abc123",
+      status: "completed",
+      conclusion: "success",
+      run_started_at: "2026-08-12T00:00:00Z",
+      html_url: "https://example.test/runs/100",
+    }),
+    listWorkflowRunJobs: async () => [{ name: "Tests", status: "completed", conclusion: "success", steps: [] }],
+    updateCheckRun: async () => {
+      throw new Error("PATCH /check-runs/99 failed (403): Resource not accessible by integration");
+    },
+    createCheckRun: async (body) => created.push(body),
+    setIssueLabels: async () => {},
+  });
+  await runCiDiagnostics({ client, event: eventFor({ name: "Security Audit", conclusion: "success" }) });
+  assert.equal(created.length, 1);
+  assert.equal(created[0].name, "PR Gate");
+  assert.equal(created[0].head_sha, "abc123");
+  assert.equal(created[0].conclusion, "success");
+});
+
 test("CI-running label remains while another required workflow is pending", async () => {
   const labelWrites = [];
   let checkListCalls = 0;
