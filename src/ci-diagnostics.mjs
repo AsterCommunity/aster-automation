@@ -85,8 +85,6 @@ async function updatePrDiagnostics(client, pull, config) {
   await client.setIssueLabels(current.number, labels);
   const comments = await client.listIssueComments(pull.number);
   const existing = comments.find((comment) => comment.body?.includes(config.gate.commentMarker));
-  const hasProblem = workflows.some((workflow) => ["failure", "cancelled"].includes(workflow.state));
-  if (!hasProblem && !existing) return;
   const body = renderDiagnosticsComment({ sha, workflows }, config);
   if (existing) await client.updateIssueComment(existing.id, body);
   else await client.createIssueComment(pull.number, body);

@@ -26,6 +26,9 @@ function requiredMethods(overrides = {}) {
   return {
     ensureLabel: async () => {},
     listPullsForCommit: async () => [],
+    listIssueComments: async () => [],
+    createIssueComment: async () => {},
+    updateIssueComment: async () => {},
     ...overrides,
   };
 }
@@ -84,6 +87,7 @@ test("failed PR workflow updates the existing gate and creates one diagnostics c
 
 test("completed gate is superseded instead of reopened when rerun conclusion changes", async () => {
   const created = [];
+  const comments = [];
   const labelWrites = [];
   let checkListCalls = 0;
   const client = requiredMethods({
@@ -117,13 +121,15 @@ test("completed gate is superseded instead of reopened when rerun conclusion cha
     createCheckRun: async (body) => created.push(body),
     setIssueLabels: async (number, labels) => labelWrites.push({ number, labels }),
     updateCheckRun: async () => assert.fail("completed gate should not be reopened"),
-    listIssueComments: async () => [],
-    createIssueComment: async () => {},
+    createIssueComment: async (number, body) => comments.push({ number, body }),
   });
   await runCiDiagnostics({ client, event: eventFor({ name: "Security Audit", conclusion: "success" }) });
   assert.equal(created.length, 1);
   assert.equal(created[0].conclusion, "success");
   assert.deepEqual(labelWrites, [{ number: 12, labels: ["Dependencies", "CI: Passed"] }]);
+  assert.equal(comments.length, 1);
+  assert.match(comments[0].body, /CI diagnostics resolved/);
+  assert.match(comments[0].body, /Security Audit \| PASS/);
 });
 
 test("CI-running label remains while another required workflow is pending", async () => {

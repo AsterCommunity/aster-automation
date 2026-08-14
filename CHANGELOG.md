@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Cancel pending gates on superseded PR heads and reconcile every historical head when a pull request closes or is manually recovered.
+- Publish the stable per-HEAD diagnostics comment for successful CI, including PRs that never had an earlier failure comment.
 
 ## [0.1.0] - 2026-08-15
 
