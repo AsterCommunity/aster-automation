@@ -1,0 +1,16 @@
+{
+  "name": "@astercommunity/automation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic GitHub PR and CI lifecycle automation for AsterCommunity repositories",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "node --test test/*.test.mjs",
+    "validate": "node scripts/check.mjs && node --test test/*.test.mjs"
+  },
+  "license": "MIT"
+}

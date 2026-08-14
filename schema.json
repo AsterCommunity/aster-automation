@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/AsterCommunity/aster-automation/main/schema.json",
+  "title": "AsterCommunity automation configuration",
+  "type": "object",
+  "required": ["version", "gate", "labels", "workflows", "linkedIssues", "incidents", "diagnosticHints"],
+  "properties": {
+    "version": { "const": 1 },
+    "gate": {
+      "type": "object",
+      "required": ["name", "commentMarker", "incidentMarkerPrefix", "runningLabel", "passedLabel"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/nonEmptyString" },
+        "commentMarker": { "$ref": "#/$defs/nonEmptyString" },
+        "incidentMarkerPrefix": { "$ref": "#/$defs/nonEmptyString" },
+        "runningLabel": { "$ref": "#/$defs/nonEmptyString" },
+        "passedLabel": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "required": ["definitions", "rules"],
+      "properties": {
+        "definitions": { "type": "object" },
+        "rules": { "type": "array", "items": { "$ref": "#/$defs/pathRule" } }
+      }
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "paths"],
+        "properties": {
+          "name": { "$ref": "#/$defs/nonEmptyString" },
+          "paths": { "$ref": "#/$defs/stringArray" }
+        }
+      }
+    },
+    "linkedIssues": { "type": "object" },
+    "incidents": { "type": "object" },
+    "diagnosticHints": { "type": "array" }
+  },
+  "$defs": {
+    "nonEmptyString": { "type": "string", "minLength": 1 },
+    "stringArray": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyString" } },
+    "pathRule": {
+      "type": "object",
+      "required": ["label", "paths"],
+      "properties": {
+        "label": { "$ref": "#/$defs/nonEmptyString" },
+        "paths": { "$ref": "#/$defs/stringArray" }
+      }
+    }
+  }
+}

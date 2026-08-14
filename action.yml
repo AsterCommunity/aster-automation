@@ -1,0 +1,23 @@
+name: AsterCommunity Automation
+description: Deterministic PR metadata, aggregate CI gates, diagnostics, and CI incident lifecycle
+author: AsterCommunity
+
+inputs:
+  mode:
+    description: Operation to execute: pr-automation, ci-diagnostics, or validate-config
+    required: true
+  token:
+    description: GitHub token or GitHub App installation token
+    required: false
+  config-path:
+    description: Repository-relative path to the versioned automation configuration
+    required: false
+    default: .github/aster-automation.json
+
+runs:
+  using: node24
+  main: src/action.mjs
+
+branding:
+  icon: check-circle
+  color: purple
