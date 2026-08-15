@@ -166,16 +166,20 @@ test("closed unmerged PR clears its CI lifecycle labels", async () => {
   assert.deepEqual(labelWrites[0], { number: 12, labels: ["Rust"] });
 });
 
-test("closed PR cancels its pending gate", async () => {
+test("closed PR cancels its pending gate and readiness check", async () => {
   const updates = [];
   const client = baseClient({
     getPull: async () => pull({ merged: true }),
-    listCheckRuns: async () => [{ id: 99, name: "PR Gate", status: "in_progress", conclusion: null }],
+    listCheckRuns: async () => [
+      { id: 99, name: "PR Gate", status: "in_progress", conclusion: null },
+      { id: 100, name: "PR Readiness", status: "in_progress", conclusion: null },
+      { id: 101, name: "External Check", status: "in_progress", conclusion: null },
+    ],
     updateCheckRun: async (id, body) => updates.push({ id, body }),
   });
   await runPrAutomation({ client, event: { action: "closed", pull_request: pull() } });
-  assert.deepEqual(updates, [{
-    id: 99,
+  assert.deepEqual(updates, [99, 100].map((id) => ({
+    id,
     body: {
       status: "completed",
       conclusion: "cancelled",
@@ -184,7 +188,7 @@ test("closed PR cancels its pending gate", async () => {
         summary: "The pull request was merged before all required CI workflows reached a terminal state.",
       },
     },
-  }]);
+  })));
 });
 
 test("closed PR cancels pending gates from every historical head", async () => {
@@ -200,7 +204,10 @@ test("closed PR cancels pending gates from every historical head", async () => {
       },
     ],
     listCheckRuns: async (sha) => ({
-      current: [{ id: 103, name: "PR Gate", status: "in_progress", conclusion: null }],
+      current: [
+        { id: 103, name: "PR Gate", status: "in_progress", conclusion: null },
+        { id: 104, name: "PR Readiness", status: "queued", conclusion: null },
+      ],
       "old-linear": [
         { id: 101, name: "PR Gate", status: "in_progress", conclusion: null },
         { id: 100, name: "PR Gate", status: "completed", conclusion: "failure" },
@@ -210,7 +217,7 @@ test("closed PR cancels pending gates from every historical head", async () => {
     updateCheckRun: async (id, body) => updates.push({ id, body }),
   });
   await runPrAutomation({ client, event: { action: "closed", pull_request: pull() } });
-  assert.deepEqual(updates.map(({ id }) => id), [103, 101, 102]);
+  assert.deepEqual(updates.map(({ id }) => id), [103, 104, 101, 102]);
   assert.ok(updates.every(({ body }) => body.conclusion === "cancelled"));
 });
 

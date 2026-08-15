@@ -35,11 +35,12 @@ function pullHistoryShas(pull, timeline) {
   return [...shas];
 }
 
-async function cancelPendingGates(client, shas, config, output) {
+async function cancelPendingPullChecks(client, shas, config, output) {
+  const managedChecks = new Set([config.gate.name, config.readiness.name]);
   const pending = [];
   for (const sha of new Set(shas.filter(Boolean))) {
     for (const run of await client.listCheckRuns(sha)) {
-      if (run.name === config.gate.name && run.status !== "completed") pending.push(run);
+      if (managedChecks.has(run.name) && run.status !== "completed") pending.push(run);
     }
   }
   for (const run of pending) {
@@ -59,7 +60,7 @@ function inheritedPriority(issues, config) {
 
 async function synchronizeOpenPull(client, pull, config, supersededSha) {
   if (supersededSha && supersededSha !== pull.head.sha) {
-    await cancelPendingGates(client, [supersededSha], config, {
+    await cancelPendingPullChecks(client, [supersededSha], config, {
       title: "Superseded by a newer pull request head",
       summary: `This gate belongs to an earlier pull request head and was cancelled when \`${pull.head.sha.slice(0, 12)}\` became current.`,
     });
@@ -121,7 +122,7 @@ async function synchronizeOpenPull(client, pull, config, supersededSha) {
 async function synchronizeClosedPull(client, pull, config) {
   const state = pull.merged ? "merged" : "closed";
   const timeline = await client.listIssueTimeline(pull.number);
-  await cancelPendingGates(client, pullHistoryShas(pull, timeline), config, {
+  await cancelPendingPullChecks(client, pullHistoryShas(pull, timeline), config, {
     title: `Pull request ${state} before CI completed`,
     summary: `The pull request was ${state} before all required CI workflows reached a terminal state.`,
   });
