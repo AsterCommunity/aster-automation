@@ -123,16 +123,17 @@ export function incidentMarker(fingerprint, config) {
   return `<!-- ${config.gate.incidentMarkerPrefix}:${fingerprint} -->`;
 }
 
-export function renderIncidentBody({ fingerprint, workflowName, branch, runUrl, sha, failedJobs, occurrences = 1, recoveryStreak = 0 }, config) {
+export function renderIncidentBody({ fingerprint, workflowName, branch, runUrl, sha, failedJobs, occurrences = 1, recoveryStreak = 0, verificationStatus = "awaiting_verification" }, config) {
   const target = config.incidents.recoverySuccesses;
   const rows = failedJobs.map((job) => `| ${escapeMarkdownCell(job.name)} | ${escapeMarkdownCell(failedStep(job))} | [logs](${job.htmlUrl || runUrl}) |`);
-  return `${incidentMarker(fingerprint, config)}\n## CI failure\n\n| Field | Value |\n| --- | --- |\n| Workflow | ${escapeMarkdownCell(workflowName)} |\n| Branch | \`${escapeMarkdownCell(branch)}\` |\n| Commit | \`${escapeMarkdownCell(sha)}\` |\n| Latest run | [open run](${runUrl}) |\n| Occurrences | ${occurrences} |\n| Recovery streak | ${recoveryStreak} / ${target} |\n\n### Failed jobs\n\n| Job | Failed step | Details |\n| --- | --- | --- |\n${rows.join("\n")}\n\nThis issue is updated by trusted automation and closes after ${target} consecutive successful runs of the same workflow and branch.`;
+  return `${incidentMarker(fingerprint, config)}\n## CI failure\n\n| Field | Value |\n| --- | --- |\n| Workflow | ${escapeMarkdownCell(workflowName)} |\n| Branch | \`${escapeMarkdownCell(branch)}\` |\n| Commit | \`${escapeMarkdownCell(sha)}\` |\n| Latest run | [open run](${runUrl}) |\n| Occurrences | ${occurrences} |\n| Recovery streak | ${recoveryStreak} / ${target} |\n| Verification status | ${escapeMarkdownCell(verificationStatus)} |\n\n### Failed jobs\n\n| Job | Failed step | Details |\n| --- | --- | --- |\n${rows.join("\n")}\n\nThis issue is updated by trusted automation and closes after ${target} consecutive successful runs of the same workflow and branch.`;
 }
 
 export function parseIncidentState(body) {
   const occurrences = Number(body.match(/\| Occurrences \| (\d+) \|/)?.[1] || 0);
   const recoveryStreak = Number(body.match(/\| Recovery streak \| (\d+) \/ \d+ \|/)?.[1] || 0);
-  return { occurrences, recoveryStreak };
+  const verificationStatus = body.match(/\| Verification status \| ([^|]+) \|/)?.[1]?.trim() || "awaiting_verification";
+  return { occurrences, recoveryStreak, verificationStatus };
 }
 
 export function isInfrastructureFailure(failedJobs) {

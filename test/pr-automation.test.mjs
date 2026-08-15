@@ -14,11 +14,22 @@ function baseClient(overrides = {}) {
     createCheckRun: async () => {},
     updateCheckRun: async () => {},
     listIssueComments: async () => [],
+    createIssueComment: async () => {},
     listIssueTimeline: async () => [],
     updateIssueComment: async () => {},
     setIssueLabels: async () => {},
-    graphql: async () => ({
-      data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [] } } } },
+    graphql: async (query) => ({
+      data: {
+        repository: {
+          pullRequest: query.includes("reviewThreads") ? {
+            isDraft: false,
+            mergeable: "MERGEABLE",
+            reviewDecision: null,
+            reviews: { nodes: [] },
+            reviewThreads: { nodes: [] },
+          } : { closingIssuesReferences: { nodes: [] } },
+        },
+      },
     }),
     ...overrides,
   };

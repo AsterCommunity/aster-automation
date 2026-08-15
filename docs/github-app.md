@@ -15,6 +15,8 @@ The production identity should be an organization-owned GitHub App named `AsterC
 
 Administration, workflows, secrets, members, deployments, and contents write are outside the contract.
 
+The App still does not receive merge, review-dismissal, workflow-write, or contents-write authority. Readiness checks and release dashboards publish facts; GitHub rulesets and maintainers enforce merge and release policy.
+
 ## Initial installation
 
 1. Create the App under `AsterCommunity` with webhooks disabled.

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recover missed fork pull-request workflow events through scheduled reconciliation and publish explicit routing outcomes.
 - Recover fork pull requests by workflow head owner and branch when GitHub omits both workflow and commit PR associations.
 - Cancel pending gates on superseded PR heads and reconcile every historical head when a pull request closes or is manually recovered.
 - Publish the stable per-HEAD diagnostics comment for successful CI, including PRs that never had an earlier failure comment.
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Separate PR readiness checks, strict tracking-issue links, incident verification/flaky state, milestone dashboards, and repository workflow contract validation.
 - Configuration-driven PR metadata, aggregate CI gates, update-in-place diagnostics, fingerprinted CI incidents, and closed-PR gate recovery.
 - Dependency-free Node.js 24 action with bounded repository-local JSON configuration.
 - GitHub App permission and migration contracts for organization-owned bot identity.

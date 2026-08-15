@@ -62,6 +62,14 @@ export class GitHubClient {
     return this.request("GET", this.repoPath(`/pulls/${number}`));
   }
 
+  listOpenPulls() {
+    return this.paginate(this.repoPath("/pulls?state=open"));
+  }
+
+  getIssue(number) {
+    return this.request("GET", this.repoPath(`/issues/${number}`));
+  }
+
   async setIssueLabels(number, labels) {
     return this.request("PUT", this.repoPath(`/issues/${number}/labels`), { labels: [...new Set(labels)].sort() });
   }
@@ -118,6 +126,22 @@ export class GitHubClient {
   listOpenIssues(labels = []) {
     const query = labels.length > 0 ? `&labels=${encodeURIComponent(labels.join(","))}` : "";
     return this.paginate(this.repoPath(`/issues?state=open${query}`));
+  }
+
+  listIssues(state = "open") {
+    return this.paginate(this.repoPath(`/issues?state=${encodeURIComponent(state)}`));
+  }
+
+  listMilestones(state = "open") {
+    return this.paginate(this.repoPath(`/milestones?state=${encodeURIComponent(state)}`));
+  }
+
+  getBranch(branch) {
+    return this.request("GET", this.repoPath(`/branches/${encodeURIComponent(branch)}`));
+  }
+
+  getRepository() {
+    return this.request("GET", this.repoPath(""));
   }
 
   createIssue(body) {

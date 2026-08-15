@@ -1,5 +1,6 @@
 import { expectedWorkflows, labelsForFiles } from "./automation-core.mjs";
 import { managedPullLabels } from "./config.mjs";
+import { updateReadiness } from "./pr-readiness.mjs";
 
 function linkedIssueQuery() {
   return `query($owner: String!, $repo: String!, $number: Int!) {
@@ -156,5 +157,10 @@ export async function runPrAutomation({ client, event, config }) {
   const isManualReconciliation = !eventPull;
   if (isManualReconciliation && pull.state !== "closed") throw new Error("manual reconciliation requires a closed pull request");
   if (isManualReconciliation || event.action === "closed") return synchronizeClosedPull(client, pull, config);
-  return synchronizeOpenPull(client, pull, config, event.action === "synchronize" ? event.before : null);
+  await synchronizeOpenPull(client, pull, config, event.action === "synchronize" ? event.before : null);
+  try {
+    return await updateReadiness(client, pull, config);
+  } catch (error) {
+    return { outcome: "readiness_error", pull: pull.number, error: error.message };
+  }
 }

@@ -9,8 +9,11 @@ The action owns reusable mechanics; each target repository owns its product-spec
 - Idempotent changed-file labels while preserving human-owned labels.
 - Native closing-issue lifecycle synchronization through GitHub GraphQL relationships.
 - One aggregate Check Run for path-filtered workflows.
+- One separate `PR Readiness` Check Run for external checks, mergeability, draft state, current-head human review, and unresolved threads.
 - One update-in-place diagnostic comment per pull request HEAD.
 - Fingerprinted default-branch and scheduled CI incident Issues with consecutive-success recovery.
+- Scheduled open-PR reconciliation that repairs missed events, fork routing gaps, stale labels, readiness reports, and tracking-issue lifecycle.
+- Deterministic milestone release-readiness dashboards and repository workflow/pin contract validation.
 - Superseded-head cleanup and closed pull request recovery that terminate abandoned pending gates across the full PR history.
 - Configuration validation without dependencies or generated bundles.
 
@@ -38,7 +41,11 @@ Supported modes:
 
 - `pr-automation`
 - `ci-diagnostics`
+- `pr-readiness`
+- `reconcile-repository`
+- `milestone-dashboard`
 - `validate-config`
+- `validate-repository`
 
 See [migration](docs/migration.md) and [GitHub App identity](docs/github-app.md) for the complete workflow shape.
 

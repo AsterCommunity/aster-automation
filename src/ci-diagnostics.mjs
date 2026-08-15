@@ -10,6 +10,7 @@ import {
   renderDiagnosticsComment,
   renderIncidentBody,
 } from "./automation-core.mjs";
+import { updateReadiness } from "./pr-readiness.mjs";
 
 function normalizeJob(job) {
   return { name: job.name, status: job.status, conclusion: job.conclusion, htmlUrl: job.html_url, steps: job.steps || [] };
@@ -76,7 +77,7 @@ async function upsertGate(client, sha, workflows, config) {
   return client.createCheckRun(body);
 }
 
-async function updatePrDiagnostics(client, pull, config) {
+export async function reconcilePullDiagnostics(client, pull, config) {
   const current = await client.getPull(pull.number);
   const sha = current.head.sha;
   const files = (await client.listPullFiles(pull.number)).map((file) => file.filename);
@@ -94,6 +95,7 @@ async function updatePrDiagnostics(client, pull, config) {
   const body = renderDiagnosticsComment({ sha, workflows }, config);
   if (existing) await client.updateIssueComment(existing.id, body);
   else await client.createIssueComment(pull.number, body);
+  return { outcome: "reconciled_pull_gate", pull: current.number, sha, gate: gateState, workflows };
 }
 
 function recoveryPattern(config) {
@@ -124,9 +126,11 @@ async function updateIncidentOnFailure(client, run, jobs, config) {
     failedJobs,
     occurrences: state.occurrences + 1,
     recoveryStreak: 0,
+    verificationStatus: "awaiting_verification",
   }, config);
   const labels = [config.incidents.failureLabel];
   if (isInfrastructureFailure(failedJobs)) labels.push(config.incidents.infrastructureLabel);
+  if (state.occurrences + 1 >= config.incidents.flakyOccurrences) labels.push(config.incidents.flakyLabel);
   for (const issue of relatedIssues) {
     if (issue.number === existing?.number) continue;
     const resetBody = issue.body.replace(recoveryPattern(config), `| Recovery streak | 0 / ${config.incidents.recoverySuccesses} |`);
@@ -142,11 +146,16 @@ async function updateIncidentOnSuccess(client, run, config) {
   for (const issue of matching) {
     const state = parseIncidentState(issue.body);
     const nextStreak = state.recoveryStreak + 1;
-    const body = issue.body.replace(
+    let body = issue.body.replace(
       recoveryPattern(config),
       `| Recovery streak | ${nextStreak} / ${config.incidents.recoverySuccesses} |`,
     );
     const recovered = nextStreak >= config.incidents.recoverySuccesses;
+    if (/\| Verification status \|/.test(body)) {
+      body = body.replace(/\| Verification status \| [^|]+ \|/, `| Verification status | ${recovered ? "recovered" : "recovering"} |`);
+    } else {
+      body = body.replace("| Recovery streak |", `| Verification status | ${recovered ? "recovered" : "recovering"} |\n| Recovery streak |`);
+    }
     await client.updateIssue(issue.number, {
       body,
       state: recovered ? "closed" : "open",
@@ -175,12 +184,30 @@ export async function runCiDiagnostics({ client, event, config }) {
     if (pull.state === "open" && pull.head.sha === run.head_sha) openPulls.push(pull);
   }
   if (openPulls.length > 0 && run.event === "pull_request") {
-    for (const pull of openPulls) await updatePrDiagnostics(client, pull, config);
-    return;
+    const results = [];
+    for (const pull of openPulls) {
+      results.push(await reconcilePullDiagnostics(client, pull, config));
+      if (typeof client.graphql === "function") {
+        try {
+          results.push(await updateReadiness(client, pull, config));
+        } catch (error) {
+          results.push({ outcome: "readiness_error", pull: pull.number, error: error.message });
+        }
+      }
+    }
+    return { outcome: "reconciled_pull", sourceRun: run.id, results };
   }
   const repositoryDefaultBranch = event.repository.default_branch;
-  if (run.event !== "schedule" && run.head_branch !== repositoryDefaultBranch) return;
+  if (run.event !== "schedule" && run.head_branch !== repositoryDefaultBranch) {
+    return {
+      outcome: run.event === "pull_request" ? "routing_anomaly" : "ignored_non_default_branch",
+      sourceRun: run.id,
+      headSha: run.head_sha,
+      headBranch: run.head_branch,
+    };
+  }
   const jobs = (await client.listWorkflowRunJobs(run.id)).map(normalizeJob);
   if (["failure", "timed_out", "action_required"].includes(run.conclusion)) await updateIncidentOnFailure(client, run, jobs, config);
   else if (run.conclusion === "success") await updateIncidentOnSuccess(client, run, config);
+  return { outcome: "reconciled_default_branch_incident", sourceRun: run.id, conclusion: run.conclusion };
 }

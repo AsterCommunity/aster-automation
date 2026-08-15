@@ -3,7 +3,7 @@
   "$id": "https://raw.githubusercontent.com/AsterCommunity/aster-automation/main/schema.json",
   "title": "AsterCommunity automation configuration",
   "type": "object",
-  "required": ["version", "gate", "labels", "workflows", "linkedIssues", "incidents", "diagnosticHints"],
+  "required": ["version", "gate", "readiness", "labels", "workflows", "linkedIssues", "incidents", "dashboard", "diagnosticHints"],
   "properties": {
     "version": { "const": 1 },
     "gate": {
@@ -18,12 +18,26 @@
         "passedLabel": { "$ref": "#/$defs/nonEmptyString" }
       }
     },
+    "readiness": {
+      "type": "object",
+      "required": ["name", "commentMarker", "requiredChecks", "requireResolvedThreads", "requireApproval", "highRiskLabel"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/nonEmptyString" },
+        "commentMarker": { "$ref": "#/$defs/nonEmptyString" },
+        "requiredChecks": { "$ref": "#/$defs/stringArray" },
+        "requireResolvedThreads": { "type": "boolean" },
+        "requireApproval": { "type": "boolean" },
+        "highRiskLabel": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
     "labels": {
       "type": "object",
-      "required": ["definitions", "rules"],
+      "required": ["definitions", "rules", "applicability"],
       "properties": {
         "definitions": { "type": "object" },
-        "rules": { "type": "array", "items": { "$ref": "#/$defs/pathRule" } }
+        "rules": { "type": "array", "items": { "$ref": "#/$defs/pathRule" } },
+        "applicability": { "type": "object", "additionalProperties": { "type": "array", "items": { "enum": ["issue", "pull_request"] } } }
       }
     },
     "workflows": {
@@ -37,8 +51,28 @@
         }
       }
     },
-    "linkedIssues": { "type": "object" },
-    "incidents": { "type": "object" },
+    "linkedIssues": {
+      "type": "object",
+      "required": ["trackingPattern"],
+      "properties": { "trackingPattern": { "$ref": "#/$defs/nonEmptyString" } }
+    },
+    "incidents": {
+      "type": "object",
+      "required": ["flakyLabel", "flakyOccurrences"],
+      "properties": {
+        "flakyLabel": { "$ref": "#/$defs/nonEmptyString" },
+        "flakyOccurrences": { "type": "integer", "minimum": 2 }
+      }
+    },
+    "dashboard": {
+      "type": "object",
+      "required": ["marker", "title", "milestones"],
+      "properties": {
+        "marker": { "$ref": "#/$defs/nonEmptyString" },
+        "title": { "$ref": "#/$defs/nonEmptyString" },
+        "milestones": { "$ref": "#/$defs/stringArray" }
+      }
+    },
     "diagnosticHints": { "type": "array" }
   },
   "$defs": {

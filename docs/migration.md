@@ -53,9 +53,15 @@ jobs:
 
 Use the same trusted checkout and App-token steps, then invoke mode `ci-diagnostics`. The caller retains its complete `workflow_run.workflows` list because GitHub event subscriptions are workflow-file metadata, not action configuration.
 
+`PR Gate` is intentionally limited to configured path-filtered CI. Add a separate scheduled trusted workflow invoking `reconcile-repository` and `milestone-dashboard`; this is the eventual-consistency repair path for missed workflow, fork-PR association, and App-identity events.
+
+The `PR Readiness` check reports configured external checks, mergeability, draft state, current-head human review, and unresolved current review threads. It publishes facts and never dismisses reviews, resolves threads, or merges a pull request.
+
+Use the strict body field `Tracking-Issue: #123` for a non-closing acceptance relationship. Native closing issue references remain the only relationship that can drive automatic issue closure.
+
 ## Validation workflow
 
-Call mode `validate-config` after checkout. This mode performs no GitHub writes and does not require a token.
+Call modes `validate-config` and `validate-repository` after checkout. Both modes perform no GitHub writes; `validate-repository` cross-checks workflow names, diagnostics subscriptions, and the shared immutable automation pin.
 
 ## Acceptance
 
@@ -63,6 +69,8 @@ Call mode `validate-config` after checkout. This mode performs no GitHub writes 
 - Unit and workflow static checks pass in the shared repository.
 - A target pull request receives labels and one aggregate gate from the pinned action commit.
 - A source workflow completion updates the same gate and diagnostic comment.
+- A readiness check explains external-check, review, draft, conflict, and thread blockers for the current head.
+- A scheduled sweep repairs a missed event without requiring a new pull request push.
 - Closing a pending pull request completes its gate as cancelled.
 - A default-branch failure creates or updates one fingerprinted incident and closes only after the configured success streak.
 - API write actors are the organization App bot after identity cutover.

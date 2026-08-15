@@ -15,6 +15,10 @@ function requireStringArray(value, path) {
   return value;
 }
 
+function optionalBoolean(value, path) {
+  if (value !== undefined && typeof value !== "boolean") throw new Error(`${path} must be a boolean`);
+}
+
 function validateRules(rules, path) {
   if (!Array.isArray(rules)) throw new Error(`${path} must be an array`);
   for (const [index, rule] of rules.entries()) {
@@ -34,6 +38,12 @@ export function validateConfig(config) {
   }
   requireString(config.gate?.runningLabel, "gate.runningLabel");
   requireString(config.gate?.passedLabel, "gate.passedLabel");
+  requireString(config.readiness?.name, "readiness.name");
+  requireString(config.readiness?.commentMarker, "readiness.commentMarker");
+  requireStringArray(config.readiness?.requiredChecks, "readiness.requiredChecks");
+  optionalBoolean(config.readiness?.requireResolvedThreads, "readiness.requireResolvedThreads");
+  optionalBoolean(config.readiness?.requireApproval, "readiness.requireApproval");
+  requireString(config.readiness?.highRiskLabel, "readiness.highRiskLabel");
   validateRules(config.labels?.rules, "labels.rules");
   if (!config.labels?.definitions || typeof config.labels.definitions !== "object" || Array.isArray(config.labels.definitions)) {
     throw new Error("labels.definitions must be an object");
@@ -42,6 +52,15 @@ export function validateConfig(config) {
     requireString(name, "labels.definitions key");
     if (!/^[0-9A-Fa-f]{6}$/.test(definition?.color || "")) throw new Error(`label ${name} must have a six-digit color`);
     requireString(definition?.description, `labels.definitions.${name}.description`);
+  }
+  if (!config.labels?.applicability || typeof config.labels.applicability !== "object" || Array.isArray(config.labels.applicability)) {
+    throw new Error("labels.applicability must be an object");
+  }
+  for (const [name, targets] of Object.entries(config.labels.applicability)) {
+    requireStringArray(targets, `labels.applicability.${name}`);
+    if (targets.some((target) => !["issue", "pull_request"].includes(target))) {
+      throw new Error(`labels.applicability.${name} contains an unsupported target`);
+    }
   }
   if (!Array.isArray(config.workflows)) throw new Error("workflows must be an array");
   for (const [index, workflow] of config.workflows.entries()) {
@@ -52,16 +71,30 @@ export function validateConfig(config) {
     requireString(config.linkedIssues?.[key], `linkedIssues.${key}`);
   }
   requireStringArray(config.linkedIssues?.mergedPullLabelsToRemove, "linkedIssues.mergedPullLabelsToRemove");
+  requireString(config.linkedIssues?.trackingPattern, "linkedIssues.trackingPattern");
+  try {
+    new RegExp(config.linkedIssues.trackingPattern, "gim");
+  } catch (error) {
+    throw new Error(`linkedIssues.trackingPattern is invalid: ${error.message}`);
+  }
   requireString(config.incidents?.failureLabel, "incidents.failureLabel");
   requireString(config.incidents?.infrastructureLabel, "incidents.infrastructureLabel");
   if (!Number.isInteger(config.incidents?.recoverySuccesses) || config.incidents.recoverySuccesses < 1) {
     throw new Error("incidents.recoverySuccesses must be a positive integer");
   }
+  requireString(config.incidents?.flakyLabel, "incidents.flakyLabel");
+  if (!Number.isInteger(config.incidents?.flakyOccurrences) || config.incidents.flakyOccurrences < 2) {
+    throw new Error("incidents.flakyOccurrences must be an integer of at least 2");
+  }
+  requireString(config.dashboard?.marker, "dashboard.marker");
+  requireString(config.dashboard?.title, "dashboard.title");
+  requireStringArray(config.dashboard?.milestones, "dashboard.milestones");
   for (const name of [
     config.gate.runningLabel,
     config.gate.passedLabel,
     config.incidents.failureLabel,
     config.incidents.infrastructureLabel,
+    config.incidents.flakyLabel,
   ]) {
     if (!Object.hasOwn(config.labels.definitions, name)) throw new Error(`labels.definitions must define managed label ${name}`);
   }

@@ -13,6 +13,7 @@ import {
   renderDiagnosticsComment,
   renderIncidentBody,
 } from "./test-core.mjs";
+import { config } from "./fixture-config.mjs";
 
 test("glob matching handles root and nested recursive paths", () => {
   assert.match("Cargo.toml", globToRegex("**/Cargo.toml"));
@@ -129,5 +130,19 @@ test("incident state and fingerprint are stable across failed job ordering", () 
     occurrences: 3,
     recoveryStreak: 1,
   });
-  assert.deepEqual(parseIncidentState(body), { occurrences: 3, recoveryStreak: 1 });
+  assert.deepEqual(parseIncidentState(body), { occurrences: 3, recoveryStreak: 1, verificationStatus: "awaiting_verification" });
+});
+
+test("incident body records verification state for recovery sweeps", () => {
+  const body = renderIncidentBody({
+    fingerprint: "abc",
+    workflowName: "Rust CI",
+    branch: "master",
+    runUrl: "https://example.test/run",
+    sha: "deadbeef",
+    failedJobs: [{ name: "Tests", steps: [] }],
+    verificationStatus: "recovering",
+  }, config);
+  assert.match(body, /Verification status \| recovering/);
+  assert.equal(parseIncidentState(body).verificationStatus, "recovering");
 });
