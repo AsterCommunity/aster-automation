@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recover fork pull requests by workflow head owner and branch when GitHub omits both workflow and commit PR associations.
 - Cancel pending gates on superseded PR heads and reconcile every historical head when a pull request closes or is manually recovered.
 - Publish the stable per-HEAD diagnostics comment for successful CI, including PRs that never had an earlier failure comment.
 - Create a new authoritative gate when an identity cutover leaves an in-progress gate owned by a different GitHub App.

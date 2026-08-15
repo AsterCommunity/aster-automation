@@ -102,6 +102,11 @@ export class GitHubClient {
     return this.paginate(this.repoPath(`/commits/${sha}/pulls`));
   }
 
+  listOpenPullsByHead(owner, branch) {
+    const head = encodeURIComponent(`${owner}:${branch}`);
+    return this.paginate(this.repoPath(`/pulls?state=open&head=${head}`));
+  }
+
   createCheckRun(body) {
     return this.request("POST", this.repoPath("/check-runs"), body);
   }

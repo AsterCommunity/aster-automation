@@ -164,7 +164,11 @@ export async function runCiDiagnostics({ client, event, config }) {
   }
   const run = event.workflow_run || await client.getWorkflowRun(numericRunId);
   if (!run) throw new Error("workflow_run payload is required");
-  const candidates = run.pull_requests?.length > 0 ? run.pull_requests : await client.listPullsForCommit(run.head_sha);
+  let candidates = run.pull_requests?.length > 0 ? run.pull_requests : await client.listPullsForCommit(run.head_sha);
+  if (candidates.length === 0 && run.event === "pull_request") {
+    const headOwner = run.head_repository?.owner?.login;
+    if (headOwner && run.head_branch) candidates = await client.listOpenPullsByHead(headOwner, run.head_branch);
+  }
   const openPulls = [];
   for (const candidate of candidates) {
     const pull = await client.getPull(candidate.number);

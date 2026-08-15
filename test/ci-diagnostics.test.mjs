@@ -26,12 +26,87 @@ function requiredMethods(overrides = {}) {
   return {
     ensureLabel: async () => {},
     listPullsForCommit: async () => [],
+    listOpenPullsByHead: async () => [],
     listIssueComments: async () => [],
     createIssueComment: async () => {},
     updateIssueComment: async () => {},
     ...overrides,
   };
 }
+
+test("fork PR is resolved by head when workflow and commit associations are empty", async () => {
+  const checkUpdates = [];
+  const headLookups = [];
+  let checkListCalls = 0;
+  const client = requiredMethods({
+    listOpenPullsByHead: async (owner, branch) => {
+      headLookups.push({ owner, branch });
+      return [{ number: 12 }];
+    },
+    getPull: async () => ({
+      number: 12,
+      state: "open",
+      head: { sha: "abc123" },
+      labels: [{ name: "Rust" }, { name: "CI: Running" }],
+    }),
+    listPullFiles: async () => [{ filename: ".cargo/audit.toml" }],
+    listCheckRuns: async () => {
+      checkListCalls += 1;
+      if (checkListCalls === 1) {
+        return [{
+          id: 10,
+          name: "Security Audit",
+          details_url: "https://github.com/AsterCommunity/AsterDrive/actions/runs/100/job/1",
+        }];
+      }
+      return [{ id: 99, name: "PR Gate", status: "in_progress", conclusion: null }];
+    },
+    getWorkflowRun: async () => ({
+      id: 100,
+      name: "Security Audit",
+      head_sha: "abc123",
+      status: "completed",
+      conclusion: "success",
+      run_started_at: "2026-08-12T00:00:00Z",
+      html_url: "https://example.test/runs/100",
+    }),
+    listWorkflowRunJobs: async () => [{ name: "Tests", status: "completed", conclusion: "success", steps: [] }],
+    updateCheckRun: async (id, body) => checkUpdates.push({ id, body }),
+    setIssueLabels: async () => {},
+  });
+
+  await runCiDiagnostics({
+    client,
+    event: eventFor({
+      name: "Security Audit",
+      pull_requests: [],
+      head_repository: { owner: { login: "fork-owner" } },
+    }),
+  });
+
+  assert.deepEqual(headLookups, [{ owner: "fork-owner", branch: "feature" }]);
+  assert.equal(checkUpdates[0].id, 99);
+  assert.equal(checkUpdates[0].body.conclusion, "success");
+});
+
+test("fork head fallback ignores a PR that has advanced to another commit", async () => {
+  let checkRunReads = 0;
+  const client = requiredMethods({
+    listOpenPullsByHead: async () => [{ number: 12 }],
+    getPull: async () => ({ number: 12, state: "open", head: { sha: "new-head" }, labels: [] }),
+    listCheckRuns: async () => {
+      checkRunReads += 1;
+      return [];
+    },
+  });
+
+  await runCiDiagnostics({
+    client,
+    event: eventFor({ pull_requests: [], head_repository: { owner: { login: "fork-owner" } } }),
+  });
+
+  assert.equal(checkRunReads, 0);
+});
 
 test("failed PR workflow updates the existing gate and creates one diagnostics comment", async () => {
   const checkUpdates = [];
