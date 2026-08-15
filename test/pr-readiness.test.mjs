@@ -56,6 +56,22 @@ test("readiness reports external checks and unresolved review threads without mu
   assert.equal(facts.currentApprovals, 0);
 });
 
+test("a later comment does not erase an active human change request", async () => {
+  const facts = await collectReadiness(client({
+    graphql: async () => ({ data: { repository: { pullRequest: {
+      isDraft: false,
+      mergeable: "MERGEABLE",
+      reviewDecision: "CHANGES_REQUESTED",
+      reviews: { nodes: [
+        { state: "CHANGES_REQUESTED", submittedAt: "2026-01-01T00:00:00Z", author: { login: "reviewer" }, commit: { oid: "old" } },
+        { state: "COMMENTED", submittedAt: "2026-01-02T00:00:00Z", author: { login: "reviewer" }, commit: { oid: "abc123" } },
+      ] },
+      reviewThreads: { nodes: [] },
+    } } } }),
+  }), pull(), config);
+  assert.ok(facts.blockers.includes("Human review has requested changes"));
+});
+
 test("readiness updates one check and one current-head report", async () => {
   const created = [];
   const comments = [];

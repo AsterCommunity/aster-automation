@@ -56,8 +56,9 @@ export async function collectReadiness(client, pull, config) {
   }
   const currentThreads = (facts.reviewThreads.nodes || []).filter((thread) => !thread.isResolved && !thread.isOutdated).length;
   if (config.readiness.requireResolvedThreads && currentThreads > 0) blockers.push(`${currentThreads} current review thread(s) unresolved`);
-  const reviews = latestReviewsByAuthor(facts.reviews.nodes).filter(humanReview);
-  if (facts.reviewDecision === "CHANGES_REQUESTED" && reviews.some((review) => review.state === "CHANGES_REQUESTED")) blockers.push("Human review has requested changes");
+  const allHumanReviews = (facts.reviews.nodes || []).filter(humanReview);
+  const reviews = latestReviewsByAuthor(allHumanReviews);
+  if (facts.reviewDecision === "CHANGES_REQUESTED" && allHumanReviews.some((review) => review.state === "CHANGES_REQUESTED")) blockers.push("Human review has requested changes");
   const currentApprovals = reviews.filter((review) => review.state === "APPROVED" && review.commit?.oid === pull.head.sha).length;
   const highRisk = pull.labels.some((label) => label.name === config.readiness.highRiskLabel);
   if ((config.readiness.requireApproval || highRisk) && currentApprovals < 1) blockers.push("Current head requires a human approval");
