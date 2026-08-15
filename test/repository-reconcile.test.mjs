@@ -1,11 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { trackingIssueNumbers, updateMilestoneDashboard } from "../src/repository-reconcile.mjs";
+import { reconcileTrackingIssues, trackingIssueNumbers, updateMilestoneDashboard } from "../src/repository-reconcile.mjs";
 import { config } from "./fixture-config.mjs";
 
 test("tracking issue syntax is strict and deduplicated", () => {
   assert.deepEqual(trackingIssueNumbers("Tracking-Issue: #519\nTracking-Issue: #519\nRelated to #20", config), [519]);
+});
+
+test("tracking lifecycle removes temporary labels only after every PR relationship closes", async () => {
+  const writes = [];
+  const issue = { number: 519, state: "open", labels: [{ name: "Wait For PR" }, { name: "Status: In Progress" }] };
+  const client = {
+    owner: "AsterCommunity",
+    repo: "AsterDrive",
+    listOpenIssues: async () => [issue],
+    getIssue: async () => issue,
+    graphql: async () => ({ data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [] } } } } }),
+    setIssueLabels: async (number, labels) => writes.push({ number, labels }),
+  };
+  const results = await reconcileTrackingIssues(client, [], config);
+  assert.equal(results[0].hasOpenPull, false);
+  assert.deepEqual(writes, [{ number: 519, labels: [] }]);
 });
 
 test("milestone dashboard is updated in place", async () => {

@@ -12,7 +12,17 @@ export function trackingIssueNumbers(body, config) {
   return [...numbers];
 }
 
-async function reconcileTrackingIssues(client, pulls, config) {
+function issuePullsQuery() {
+  return `query($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+      issue(number: $number) {
+        closedByPullRequestsReferences(first: 50) { nodes { number state } }
+      }
+    }
+  }`;
+}
+
+export async function reconcileTrackingIssues(client, pulls, config) {
   const trackedBy = new Map();
   for (const pull of pulls) {
     for (const number of trackingIssueNumbers(pull.body, config)) {
@@ -20,16 +30,29 @@ async function reconcileTrackingIssues(client, pulls, config) {
       trackedBy.get(number).push(pull.number);
     }
   }
+  const waitIssues = await client.listOpenIssues([config.linkedIssues.waitLabel]);
+  const numbers = new Set([...trackedBy.keys(), ...waitIssues.filter((issue) => !issue.pull_request).map((issue) => issue.number)]);
   const results = [];
-  for (const [number, pullNumbers] of trackedBy) {
+  for (const number of numbers) {
+    const pullNumbers = trackedBy.get(number) || [];
     const issue = await client.getIssue(number);
     if (issue.pull_request || issue.state !== "open") continue;
     const labels = issue.labels.map((label) => typeof label === "string" ? label : label.name);
-    const next = labels.filter((label) => label !== config.linkedIssues.readyLabel);
-    if (!next.includes(config.linkedIssues.waitLabel)) next.push(config.linkedIssues.waitLabel);
-    if (!next.some((label) => label.startsWith(config.linkedIssues.statusPrefix))) next.push(config.linkedIssues.inProgressLabel);
-    await client.setIssueLabels(number, next);
-    results.push({ issue: number, openPulls: pullNumbers });
+    const response = await client.graphql(issuePullsQuery(), { owner: client.owner, repo: client.repo, number });
+    const nativeOpen = (response.data.repository.issue?.closedByPullRequestsReferences.nodes || [])
+      .filter((pull) => pull.state === "OPEN")
+      .map((pull) => pull.number);
+    const hasOpenPull = pullNumbers.length > 0 || nativeOpen.length > 0;
+    let next = [...labels];
+    if (hasOpenPull) {
+      next = next.filter((label) => label !== config.linkedIssues.readyLabel);
+      if (!next.includes(config.linkedIssues.waitLabel)) next.push(config.linkedIssues.waitLabel);
+      if (!next.some((label) => label.startsWith(config.linkedIssues.statusPrefix))) next.push(config.linkedIssues.inProgressLabel);
+    } else {
+      next = next.filter((label) => ![config.linkedIssues.waitLabel, config.linkedIssues.inProgressLabel].includes(label));
+    }
+    if (JSON.stringify([...labels].sort()) !== JSON.stringify([...next].sort())) await client.setIssueLabels(number, next);
+    results.push({ issue: number, trackingPulls: pullNumbers, nativePulls: nativeOpen, hasOpenPull });
   }
   return results;
 }
