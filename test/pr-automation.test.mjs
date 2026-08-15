@@ -177,7 +177,7 @@ test("closed PR cancels its pending gate and readiness check", async () => {
     ],
     updateCheckRun: async (id, body) => updates.push({ id, body }),
   });
-  await runPrAutomation({ client, event: { action: "closed", pull_request: pull() } });
+  const result = await runPrAutomation({ client, event: { action: "closed", pull_request: pull() } });
   assert.deepEqual(updates, [99, 100].map((id) => ({
     id,
     body: {
@@ -189,6 +189,12 @@ test("closed PR cancels its pending gate and readiness check", async () => {
       },
     },
   })));
+  assert.deepEqual(result, {
+    outcome: "reconciled_closed_pull",
+    pull: 12,
+    state: "merged",
+    sha: "abc123",
+  });
 });
 
 test("closed PR cancels pending gates from every historical head", async () => {

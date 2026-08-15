@@ -144,6 +144,12 @@ async function synchronizeClosedPull(client, pull, config) {
       .filter((label) => ![config.linkedIssues.waitLabel, config.linkedIssues.inProgressLabel].includes(label));
     await client.setIssueLabels(issue.number, next);
   }
+  return {
+    outcome: "reconciled_closed_pull",
+    pull: pull.number,
+    state,
+    sha: pull.head?.sha || null,
+  };
 }
 
 export async function runPrAutomation({ client, event, config }) {
